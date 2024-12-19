@@ -1,0 +1,4 @@
+instaloader
+Pillow
+requests
+python-dotenv 

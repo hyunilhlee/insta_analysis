@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>인스타그램 컨텐츠 분석기</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+        .result {
+            display: none;
+        }
+        .result.active {
+            display: block;
+        }
+        .process-log {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"></script>
+    <script type="module" src="{{ url_for('static', filename='js/firebase-config.js') }}"></script>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-4">인스타그램 컨텐츠 분석기</h1>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <form id="analysisForm" class="mb-4">
+                    <div class="input-group">
+                        <input type="text" id="instagramUrl" class="form-control" 
+                               placeholder="인스타그램 포스트 URL을 입력하세요" required>
+                        <button type="submit" class="btn btn-primary">분석하기</button>
+                    </div>
+                </form>
+
+                <div class="loading">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">분석 중입니다...</p>
+                    </div>
+                    <div class="process-log" id="processLog"></div>
+                </div>
+
+                <div class="result">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">분석 결과</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>주요 키워드:</h6>
+                            <p id="keywords" class="mb-3"></p>
+
+                            <h6>내용 요약:</h6>
+                            <p id="summary" class="mb-3"></p>
+
+                            <h6>감정 분석:</h6>
+                            <p id="sentiment" class="mb-3"></p>
+
+                            <h6>컨텐츠 일치성:</h6>
+                            <p id="coherence" class="mb-3"></p>
+                        </div>
+                    </div>
+                    <button id="resetButton" class="btn btn-secondary w-100">다시하기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const form = document.getElementById('analysisForm');
+        const loadingDiv = document.querySelector('.loading');
+        const resultDiv = document.querySelector('.result');
+        const processLog = document.getElementById('processLog');
+        const resetButton = document.getElementById('resetButton');
+
+        function appendLog(message) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.style.margin = '0';
+            processLog.appendChild(p);
+            processLog.scrollTop = processLog.scrollHeight;
+        }
+
+        function resetForm() {
+            form.reset();
+            loadingDiv.classList.remove('active');
+            resultDiv.classList.remove('active');
+            processLog.innerHTML = '';
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('instagramUrl').value;
+            
+            // UI 초기화
+            resetForm();
+            loadingDiv.classList.add('active');
+            
+            try {
+                appendLog("분석 프로세스 시작...");
+                
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('분석 중 오류가 발생했습니다.');
+                }
+
+                const data = await response.json();
+                
+                // 결과 표시
+                document.getElementById('keywords').textContent = data.keywords;
+                document.getElementById('summary').textContent = data.summary;
+                document.getElementById('sentiment').textContent = data.sentiment;
+                document.getElementById('coherence').textContent = data.content_coherence;
+                
+                loadingDiv.classList.remove('active');
+                resultDiv.classList.add('active');
+                
+            } catch (error) {
+                appendLog(`오류 발생: ${error.message}`);
+                alert('분석 중 오류가 발생했습니다.');
+            }
+        });
+
+        resetButton.addEventListener('click', resetForm);
+    </script>
+</body>
+</html> 
