@@ -68,20 +68,41 @@ def read_template():
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self._set_headers()
-        self.wfile.write(read_template().encode())
+        if self.path.endswith('.js'):
+            self._serve_static_file(self.path[1:], 'application/javascript')
+        elif self.path.endswith('.css'):
+            self._serve_static_file(self.path[1:], 'text/css')
+        else:
+            self._set_headers()
+            self.wfile.write(read_template().encode())
+
+    def _serve_static_file(self, file_path, content_type):
+        try:
+            with open(os.path.join(root_dir, file_path), 'rb') as f:
+                self.send_response(200)
+                self.send_header('Content-type', content_type)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(f.read())
+        except FileNotFoundError:
+            self.send_error(404, f'File not found: {file_path}')
+        except Exception as e:
+            logger.error(f"파일 제공 중 오류: {str(e)}")
+            self.send_error(500, f'Internal server error: {str(e)}')
 
     def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        
         try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            
             body = json.loads(post_data.decode())
             url = body.get('url')
             
             if not url:
                 self._json_response({'error': 'URL이 필요합니다'}, 400)
                 return
+            
+            logger.info(f"분석 시작: {url}")
             
             # Instagram 스크래핑
             scraper = InstagramScraper()
@@ -91,15 +112,21 @@ class Handler(BaseHTTPRequestHandler):
                 self._json_response({'error': '컨텐츠를 가져오지 못했습니다'}, 400)
                 return
             
+            logger.info("스크래핑 완료, 분석 시작")
+            
             # 컨텐츠 분석
             analyzer = ContentAnalyzer()
             analysis_result = analyzer.analyze_content(content)
             
+            logger.info("분석 완료")
             self._json_response(analysis_result)
             
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON 디코딩 오류: {str(e)}")
+            self._json_response({'error': 'Invalid JSON format'}, 400)
         except Exception as e:
             logger.error(f"분석 중 오류: {str(e)}\n{traceback.format_exc()}")
-            self._json_response({'error': str(e)}, 500)
+            self._json_response({'error': f'분석 중 오류가 발생했습니다: {str(e)}'}, 500)
 
     def _set_headers(self, content_type='text/html'):
         self.send_response(200)
