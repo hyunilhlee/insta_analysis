@@ -1,6 +1,8 @@
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs
+import json
 import os
 import sys
-import json
 import logging
 import traceback
 
@@ -64,89 +66,55 @@ def read_template():
         </html>
         """
 
-def handler(event, context):
-    try:
-        logger.info(f"요청 받음: {event}")
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self._set_headers()
+        self.wfile.write(read_template().encode())
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
         
-        method = event.get('httpMethod', 'GET')
-        path = event.get('path', '/')
-        
-        # CORS 헤더
-        headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        }
-        
-        # OPTIONS 요청 처리
-        if method == 'OPTIONS':
-            return {
-                'statusCode': 200,
-                'headers': headers,
-                'body': ''
-            }
-        
-        # API 엔드포인트 처리
-        if method == 'POST' and path.startswith('/api/analyze'):
-            try:
-                body = json.loads(event.get('body', '{}'))
-                url = body.get('url')
-                
-                if not url:
-                    return {
-                        'statusCode': 400,
-                        'headers': {**headers, 'Content-Type': 'application/json'},
-                        'body': json.dumps({'error': 'URL이 필요합니다'})
-                    }
-                
-                # Instagram 스크래핑
-                scraper = InstagramScraper()
-                content = scraper.scrape(url)
-                
-                if not content:
-                    return {
-                        'statusCode': 400,
-                        'headers': {**headers, 'Content-Type': 'application/json'},
-                        'body': json.dumps({'error': '컨텐츠를 가져오지 못했습니다'})
-                    }
-                
-                # 컨텐츠 분석
-                analyzer = ContentAnalyzer()
-                analysis_result = analyzer.analyze_content(content)
-                
-                return {
-                    'statusCode': 200,
-                    'headers': {**headers, 'Content-Type': 'application/json'},
-                    'body': json.dumps(analysis_result)
-                }
-                
-            except Exception as e:
-                logger.error(f"분석 중 오류: {str(e)}\n{traceback.format_exc()}")
-                return {
-                    'statusCode': 500,
-                    'headers': {**headers, 'Content-Type': 'application/json'},
-                    'body': json.dumps({'error': str(e)})
-                }
-        
-        # 메인 페이지 처리
-        if method == 'GET' and (path == '/' or path == '/index.html'):
-            return {
-                'statusCode': 200,
-                'headers': {**headers, 'Content-Type': 'text/html'},
-                'body': read_template()
-            }
-        
-        # 404 처리
-        return {
-            'statusCode': 404,
-            'headers': {**headers, 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Not Found'})
-        }
-        
-    except Exception as e:
-        logger.error(f"처리 중 오류 발생: {str(e)}\n{traceback.format_exc()}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': str(e)})
-        }
+        try:
+            body = json.loads(post_data.decode())
+            url = body.get('url')
+            
+            if not url:
+                self._json_response({'error': 'URL이 필요합니다'}, 400)
+                return
+            
+            # Instagram 스크래핑
+            scraper = InstagramScraper()
+            content = scraper.scrape(url)
+            
+            if not content:
+                self._json_response({'error': '컨텐츠를 가져오지 못했습니다'}, 400)
+                return
+            
+            # 컨텐츠 분석
+            analyzer = ContentAnalyzer()
+            analysis_result = analyzer.analyze_content(content)
+            
+            self._json_response(analysis_result)
+            
+        except Exception as e:
+            logger.error(f"분석 중 오류: {str(e)}\n{traceback.format_exc()}")
+            self._json_response({'error': str(e)}, 500)
+
+    def _set_headers(self, content_type='text/html'):
+        self.send_response(200)
+        self.send_header('Content-type', content_type)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def _json_response(self, data, status=200):
+        self.send_response(status)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
+
+    def do_OPTIONS(self):
+        self._set_headers()
