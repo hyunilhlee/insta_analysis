@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import os
 import sys
@@ -9,8 +9,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from analysis.analyzer import ContentAnalyzer
 from scraping.scraper import InstagramScraper
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates', static_folder='../static')
 CORS(app)
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
@@ -36,4 +40,4 @@ def analyze():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    return jsonify({'status': 'healthy'}), 200 
+    return jsonify({'status': 'healthy'}), 200
