@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import logging
 import traceback
@@ -14,14 +15,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 프로젝트 루트 디렉토리를 Python 경로에 추가
-current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(current_dir)
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+try:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+        logger.info(f"Python 경로에 추가됨: {root_dir}")
+except Exception as e:
+    logger.error(f"경로 설정 중 오류: {str(e)}")
+    raise
 
 try:
     from scraping.scraper import InstagramScraper
     from analysis.analyzer import ContentAnalyzer
+    logger.info("모듈 import 성공")
 except ImportError as e:
     logger.error(f"Import 오류: {str(e)}")
     logger.error(f"현재 Python 경로: {sys.path}")
