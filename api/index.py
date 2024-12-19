@@ -1,10 +1,13 @@
-from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs
-import json
 import os
-import sys
+import json
 import logging
 import traceback
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs
+from dotenv import load_dotenv
+
+# 환경 변수 로드
+load_dotenv()
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -17,8 +20,8 @@ if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
 try:
-    from analysis.analyzer import ContentAnalyzer
     from scraping.scraper import InstagramScraper
+    from analysis.analyzer import ContentAnalyzer
 except ImportError as e:
     logger.error(f"Import 오류: {str(e)}")
     logger.error(f"현재 Python 경로: {sys.path}")
@@ -34,9 +37,7 @@ def read_template():
         return """
         <!DOCTYPE html>
         <html>
-        <head>
-            <title>Instagram 컨텐츠 분석</title>
-        </head>
+        <head><title>Instagram 컨텐츠 분석</title></head>
         <body>
             <h1>Instagram 컨텐츠 분석</h1>
             <div id="app">
@@ -68,27 +69,12 @@ def read_template():
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path.endswith('.js'):
-            self._serve_static_file(self.path[1:], 'application/javascript')
-        elif self.path.endswith('.css'):
-            self._serve_static_file(self.path[1:], 'text/css')
-        else:
+        try:
             self._set_headers()
             self.wfile.write(read_template().encode())
-
-    def _serve_static_file(self, file_path, content_type):
-        try:
-            with open(os.path.join(root_dir, file_path), 'rb') as f:
-                self.send_response(200)
-                self.send_header('Content-type', content_type)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(f.read())
-        except FileNotFoundError:
-            self.send_error(404, f'File not found: {file_path}')
         except Exception as e:
-            logger.error(f"파일 제공 중 오류: {str(e)}")
-            self.send_error(500, f'Internal server error: {str(e)}')
+            logger.error(f"GET 요청 처리 중 오류: {str(e)}")
+            self._json_response({'error': str(e)}, 500)
 
     def do_POST(self):
         try:
